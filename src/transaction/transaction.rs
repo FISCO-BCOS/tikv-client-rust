@@ -1,5 +1,11 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
+use std::iter;
+use std::sync::atomic;
+use std::sync::atomic::AtomicU8;
+use std::sync::Arc;
+use std::time::Instant;
+
 use derive_new::new;
 use fail::fail_point;
 use futures::prelude::*;
@@ -7,11 +13,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use std::iter;
-use std::sync::atomic;
-use std::sync::atomic::AtomicU8;
-use std::sync::Arc;
-use std::time::Instant;
 use tokio::time::Duration;
 
 use crate::backoff::Backoff;
@@ -1558,21 +1559,22 @@ impl<PdC: PdClient> Committer<PdC> {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
 enum TransactionStatus {
     /// The transaction is read-only [`Snapshot`](super::Snapshot), no need to commit or rollback or panic on drop.
-    ReadOnly,
+    ReadOnly = 0,
     /// The transaction have not been committed or rolled back.
-    Active,
+    Active = 1,
     /// The transaction has committed.
-    Committed,
+    Committed = 2,
     /// The transaction has tried to commit. Only `commit` is allowed.
-    StartedCommit,
+    StartedCommit = 3,
     /// The transaction has rolled back.
-    Rolledback,
+    Rolledback = 4,
     /// The transaction has tried to rollback. Only `rollback` is allowed.
-    StartedRollback,
+    StartedRollback = 5,
     /// The transaction has been dropped.
-    Dropped,
+    Dropped = 6,
 }
 
 impl From<u8> for TransactionStatus {

@@ -145,7 +145,7 @@ pub async fn resolve_locks(
         .await?;
         clean_regions
             .entry(lock.lock_version)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(cleaned_region);
     }
     Ok(!has_live_locks)
