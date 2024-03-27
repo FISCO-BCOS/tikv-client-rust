@@ -82,8 +82,8 @@ impl<Req: KvRequest + StoreRequest> StoreRequest for Dispatch<Req> {
     }
 }
 
-const MULTI_REGION_CONCURRENCY: usize = 16;
-const MULTI_STORES_CONCURRENCY: usize = 16;
+const MULTI_REGION_CONCURRENCY: usize = 32;
+const MULTI_STORES_CONCURRENCY: usize = 32;
 
 fn is_grpc_error(e: &Error) -> bool {
     matches!(e, Error::GrpcAPI(_) | Error::Grpc(_))
@@ -571,6 +571,7 @@ where
     type Result = P::Result;
 
     async fn execute(&self) -> Result<Self::Result> {
+        let start = std::time::Instant::now();
         let mut result = self.inner.execute().await?;
         let mut clone = self.clone();
         loop {
@@ -589,6 +590,11 @@ where
 
             let pd_client = self.pd_client.clone();
             let live_locks = resolve_locks(locks, pd_client.clone(), self.keyspace).await?;
+            debug!(
+                "resolve_locks, live_locks={}, elapsed={:?}",
+                live_locks.len(),
+                start.elapsed()
+            );
             if live_locks.is_empty() {
                 result = self.inner.execute().await?;
             } else {
@@ -598,7 +604,7 @@ where
                             "resolve lock failed because next_delay_duration is none, current_attempts={:?}", clone.backoff.current_attempts()
                         );
                         return Err(Error::ResolveLockError(live_locks));
-                    },
+                    }
                     Some(delay_duration) => {
                         sleep(delay_duration).await;
                         result = clone.inner.execute().await?;
